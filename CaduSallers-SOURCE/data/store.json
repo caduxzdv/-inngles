@@ -1,0 +1,83 @@
+{
+  "version": 5,
+  "products": [
+    {
+      "id": "PROD-MUSPSKQI-FCTI5",
+      "name": "robux",
+      "description": "dsad",
+      "price": 222,
+      "stock": 22,
+      "category": "dsa",
+      "deliveryItems": [],
+      "createdAt": "2026-10-03T18:17:36.762Z"
+    }
+  ],
+  "orders": [
+    {
+      "id": "PED-MUSPSXCU-40LYJ",
+      "userId": "1331680599731081319",
+      "items": [
+        {
+          "productId": "PROD-MUSPSKQI-FCTI5",
+          "name": "robux",
+          "quantity": 1,
+          "unitPrice": 222
+        }
+      ],
+      "total": 222,
+      "status": "Pendente",
+      "payment": "Pendente",
+      "createdAt": "2026-10-03T18:17:53.118Z"
+    },
+    {
+      "id": "PED-MUSPWWN8-K8D17",
+      "userId": "1331680599731081319",
+      "productId": "PROD-MUSPSKQI-FCTI5",
+      "productName": "robux",
+      "quantity": 1,
+      "unitPrice": 222,
+      "total": 222,
+      "status": "Cancelado",
+      "payment": "Pendente",
+      "createdAt": "2026-10-03T18:20:58.820Z",
+      "cartChannelId": "1556008179547246734",
+      "deliveredAt": null,
+      "finalizedAt": null
+    },
+    {
+      "id": "PED-MUSRBBU4-2E9OZ",
+      "userId": "1331680599731081319",
+      "productId": "PROD-MUSPSKQI-FCTI5",
+      "productName": "robux",
+      "quantity": 1,
+      "unitPrice": 222,
+      "total": 222,
+      "status": "Cancelado",
+      "payment": "Pendente",
+      "createdAt": "2026-10-03T19:00:11.308Z",
+      "cartChannelId": "1556018045523066961",
+      "deliveredAt": null,
+      "finalizedAt": null,
+      "paymentId": null,
+      "txid": null,
+      "qrcode": null,
+      "copiaCola": null,
+      "expirationDate": null
+    }
+  ],
+  "coupons": [],
+  "payments": [],
+  "settings": {
+    "currency": "BRL",
+    "storeName": "CaduSallers",
+    "cartCategoryName": "🛒・carrinhos",
+    "efi": {
+      "clientId": "",
+      "clientSecret": "",
+      "certificatePath": "",
+      "keyPath": "",
+      "pixKey": "",
+      "environment": "homologacao"
+    }
+  }
+}
