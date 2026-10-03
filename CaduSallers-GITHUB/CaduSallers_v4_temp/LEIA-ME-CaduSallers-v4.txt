@@ -1,0 +1,18 @@
+CaduSallers v4
+
+Fluxo novo:
+1. /setup publica o painel da loja no canal atual.
+2. Cliente escolhe um produto e clica em Comprar.
+3. O bot cria um canal privado em 🛒・carrinhos.
+4. O canal mostra o pedido e um botão Cancelar.
+5. Depois que o administrador entregar o produto, usa o botão Entregue.
+6. O bot marca como finalizado e faz uma contagem de 10 até 0.
+7. Em 0, o canal do carrinho é excluído automaticamente.
+
+Instalação:
+- Faça backup do index.js atual.
+- Substitua por CaduSallers_v4_index.js e renomeie para index.js.
+- Mantenha o .env atual.
+- Execute: node index.js
+
+O banco continua em data/store.json.

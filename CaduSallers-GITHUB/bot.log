@@ -1,0 +1,14 @@
+◇ injected env (1) from .env
+🌐 Webhook server listening on port 3000
+
+========================================
+✅ Cadu BOT#2690 está ONLINE
+✅ Servidores: 1
+✅ Produtos carregados: 1
+✅ Sistema de carrinhos: ATIVO
+✅ Entrega -> contagem 10s -> exclusão: ATIVO
+========================================
+
+(node:21460) DeprecationWarning: The ready event has been renamed to clientReady to distinguish it from the gateway READY event and will only emit under that name in v15. Please use clientReady instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+✅ Comandos registrados: White Store
