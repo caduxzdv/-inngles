@@ -1,0 +1,268 @@
+require('dotenv').config();
+const axios = require('axios');
+const express = require('express');
+
+const fs = require('fs');
+const path = require('path');
+
+const {
+    Client,
+    GatewayIntentBits,
+    REST,
+    Routes,
+    SlashCommandBuilder,
+    EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    StringSelectMenuBuilder,
+    PermissionFlagsBits,
+    ChannelType,
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle
+} = require('discord.js');
+
+const token = process.env.DISCORD_TOKEN;
+
+if (!token) {
+    console.error('❌ DISCORD_TOKEN não encontrado no .env');
+    process.exit(1);
+}
+
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers
+    ]
+});
+
+// ============================================================
+// CaduSallers - Improved Version
+// ============================================================
+
+const DATA_DIR = path.join(__dirname, 'data');
+const DATA_FILE = path.join(DATA_DIR, 'store.json');
+
+const DEFAULT_DB = {
+    version: 6, // Incremented version for improvements
+    categories: [], // List of categories
+    products: [],
+    orders: [],
+    coupons: [],
+    payments: [], // Store Efí payment records
+    webhookEvents: [], // Store processed webhook event IDs for idempotency
+    settings: {
+        currency: 'BRL',
+        storeName: 'CaduSallers',
+        cartCategoryName: '🛒・carrinhos',
+        // Efí configuration
+        efi: {
+            clientId: '',
+            clientSecret: '',
+            certificatePath: '',
+            keyPath: '',
+            pixKey: '',
+            environment: 'homologacao' // homologacao or producao
+        }
+    }
+};
+
+function ensureDatabase() {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+
+    if (!fs.existsSync(DATA_FILE)) {
+        fs.writeFileSync(
+            DATA_FILE,
+            JSON.stringify(DEFAULT_DB, null, 2),
+            'utf8'
+        );
+    }
+}
+
+function loadDatabase() {
+    ensureDatabase();
+
+    try {
+        const parsed = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+
+        return {
+            ...DEFAULT_DB,
+            ...parsed,
+            version: 6,
+            categories: Array.isArray(parsed.categories) ? parsed.categories : [],
+            products: Array.isArray(parsed.products) ? parsed.products : [],
+            orders: Array.isArray(parsed.orders) ? parsed.orders : [],
+            coupons: Array.isArray(parsed.coupons) ? parsed.coupons : [],
+            payments: Array.isArray(parsed.payments) ? parsed.payments : [],
+            webhookEvents: Array.isArray(parsed.webhookEvents) ? parsed.webhookEvents : [],
+            settings: {
+                ...DEFAULT_DB.settings,
+                ...(parsed.settings || {})
+            }
+        };
+    } catch (error) {
+        console.error('⚠️ store.json inválido. Criando banco novo.', error);
+
+        fs.writeFileSync(
+            DATA_FILE,
+            JSON.stringify(DEFAULT_DB, null, 2),
+            'utf8'
+        );
+
+        return structuredClone(DEFAULT_DB);
+    }
+}
+
+let db = loadDatabase();
+
+function saveDatabase() {
+    fs.writeFileSync(
+        DATA_FILE,
+        JSON.stringify(db, null, 2),
+        'utf8'
+    );
+}
+// ============================================================
+// WEBHOOK SERVER FOR EFÍ CALLBACKS
+// ============================================================
+
+const app = express();
+app.use(express.json());
+
+// Webhook endpoint for Efí Pix notifications
+app.post('/webhook/efi', async (req, res) => {
+    try {
+        console.log('🔔 Received Efí webhook:', req.body);
+
+        // Efí webhook validation (basic)
+        if (!req.body || !req.body.pix) {
+            console.warn('⚠️ Invalid webhook payload');
+            return res.status(400).send('Invalid payload');
+        }
+
+        const pixData = req.body.pix;
+        const txid = pixData.txid;
+
+        if (!txid) {
+            console.warn('⚠️ No txid in webhook payload');
+            return res.status(400).send('Missing txid');
+        }
+
+        // Idempotency: check if we've already processed this webhook event
+        if (db.webhookEvents.includes(txid)) {
+            console.log(`ℹ️ Webhook event already processed for txid: ${txid}`);
+            return res.status(200).send('OK');
+        }
+
+        // Find order by txid
+        const order = db.orders.find(o => o.txid === txid);
+        if (!order) {
+            console.warn(`⚠️ No order found for txid: ${txid}`);
+            return res.status(404).send('Order not found');
+        }
+
+        // Prevent duplicate processing
+        let statusChanged = false;
+
+        // Update order based on webhook data
+        if (pixData.status === 'CONCLUIDA' && order.payment !== 'Confirmado') {
+            order.payment = 'Confirmado';
+            order.status = 'Pago'; // Waiting for delivery
+            statusChanged = true;
+            console.log(`✅ Payment confirmed for order ${order.id}`);
+        } else if ((pixData.status === 'REMOVIDA_PELO_USUARIO_AGENTE' ||
+                   pixData.status === 'REMOVIDA_PELO_USUARIO') &&
+                   order.payment !== 'Cancelado') {
+            order.payment = 'Cancelado';
+            order.status = 'Cancelado';
+            statusChanged = true;
+            console.log(`❌ Payment cancelled for order ${order.id}`);
+        } else if (pixData.status === 'EXPIRADA' && order.payment !== 'Expirado') {
+            order.payment = 'Expirado';
+            order.status = 'Expirado';
+            statusChanged = true;
+            console.log(`⏰ Payment expired for order ${order.id}`);
+        }
+
+        if (statusChanged) {
+            // Mark webhook event as processed
+            db.webhookEvents.push(txid);
+            // Limit the size of webhookEvents array to prevent infinite growth
+            if (db.webhookEvents.length > 1000) {
+                db.webhookEvents.shift(); // Remove oldest
+            }
+            saveDatabase();
+
+            // TODO: Send notification to order channel if needed
+            // This would require storing the channel ID and sending a message
+            // For now, we rely on the user checking or using the verify button
+        }
+
+        // Return success to Efí
+        return res.status(200).send('OK');
+    } catch (error) {
+        console.error('❌ Error processing Efí webhook:', error);
+        return res.status(500).send('Internal server error');
+    }
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.status(200).send('CaduSallers bot is running');
+});
+
+// Start webhook server
+const WEBHOOK_PORT = process.env.WEBHOOK_PORT || 3000;
+app.listen(WEBHOOK_PORT, () => {
+    console.log(`🌐 Webhook server listening on port ${WEBHOOK_PORT}`);
+});
+
+// ============================================================
+// HELPER FUNCTIONS
+// ============================================================
+
+const BRAND = 0x5865F2;
+const SUCCESS = 0x57F287;
+const WARNING = 0xFEE75C;
+const DANGER = 0xED4245;
+const DARK = 0x2B2D31;
+
+const closingCarts = new Set();
+
+function money(value) {
+    return Number(value || 0).toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    });
+}
+
+function isAdmin(interaction) {
+    return Boolean(
+        interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
+    );
+}
+
+function makeId(prefix) {
+    const random = Math.random().toString(36).slice(2, 7).toUpperCase();
+    return `${prefix}-${Date.now().toString(36).toUpperCase()}-${random}`;
+}
+
+// Sequential order ID generator
+let orderSequence = 0;
+function generateOrderId() {
+    orderSequence++;
+    // Format: CADU-000001
+    return `CADU-${orderSequence.toString().padStart(6, '0')}`;
+}
+
+function sanitizeChannelName(input) {
+    return String(input || 'cliente')
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 40) || 'cliente';
+}
